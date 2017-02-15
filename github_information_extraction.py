@@ -1,11 +1,15 @@
 import json
+
+import pytz
 import requests
 import datetime
+import iso8601
 
 class RepositoryStatistics(object):
     def __init__(self,repositoryData):
-        maxCommitSingleUser,minCommitSingleUser = repositoryData.getMaxMinCommitSingleUser
+        maxCommitSingleUser,minCommitSingleUser = repositoryData.getMaxMinCommitSingleUser()
 
+        self.amountOfCommits = repositoryData.amountOfCommits
         self.averageAdditions = repositoryData.totalAdditions / repositoryData.amountOfCommits
         self.averageDeletions = repositoryData.totalDeletions / repositoryData.amountOfCommits
         self.averageMessageLength = repositoryData.totalMessageLength / repositoryData.amountOfCommits
@@ -24,6 +28,7 @@ class RepositoryData(object):
         self.totalDeletions = 0
         self.totalMessageLength = 0
         self.daysBetweenCommits = 0
+        self.previousCommitDate = ''
         self.lastCommitDaysBeforeDeadline = -1
 
     def addNewUserToDictionary(self,user):
@@ -59,13 +64,21 @@ def extractDataFromCommit(commit, deadline, repositoryData):
     else:
         repositoryData.addToExistingUserInDictionary(commit['commit']['committer']['email'])
     repositoryData.amountOfCommits += 1
-    print ("Commit message: %s.     Additions: %s. Deletions: %s" % (commit['commit']['message'],commit['stats']['additions'],commit['stats']['deletions']))
+    repositoryData.totalAdditions += commit['stats']['additions']
+    repositoryData.totalDeletions += commit['stats']['deletions']
+    repositoryData.totalMessageLength += len(commit['commit']['message'])
+    commitTimestamp = iso8601.parse_date(commit['commit']['author']['date'])
+    if repositoryData.lastCommitDaysBeforeDeadline == -1:
+        repositoryData.lastCommitDaysBeforeDeadline = (deadline - commitTimestamp).days
+    if repositoryData.previousCommitDate != '':
+        repositoryData.daysBetweenCommits += (repositoryData.previousCommitDate - commitTimestamp).days
+    repositoryData.previousCommitDate = commitTimestamp
 
 def start():
     user = 'ericzucho'
     repo = 'assignment2'
     branch = 'homework-solved'
-    deadline = datetime.datetime(year=2016,month=9,day=18)
+    deadline = datetime.datetime(year=2016,month=9,day=18,tzinfo=pytz.timezone('US/Central'))
 
     repoData = RepositoryData()
 
@@ -76,6 +89,7 @@ def start():
         return
 
     repoStatistics = RepositoryStatistics(repoData)
+    repoStatistics
 
 
 if __name__ == '__main__':
