@@ -4,6 +4,21 @@ import pytz
 import requests
 import datetime
 import iso8601
+import pandas as pd
+import numpy as np
+
+class Commit(object):
+    def __init__(self,additions,deletions,changes,amountOfFiles,userEmail,message,timestamp):
+        self.additions = additions
+        self.deletions = deletions
+        self.changes = changes
+        self.amountOfFiles = amountOfFiles
+        self.userEmail = userEmail
+        self.message = message
+        self.timestamp = timestamp
+
+    def asArray(self):
+        return [self.additions,self.deletions,self.changes,self.amountOfFiles,self.userEmail,len(self.message),self.timestamp]
 
 class RepositoryStatistics(object):
     def __init__(self,repositoryData):
@@ -12,6 +27,8 @@ class RepositoryStatistics(object):
         self.amountOfCommits = repositoryData.amountOfCommits
         self.averageAdditions = repositoryData.totalAdditions / repositoryData.amountOfCommits
         self.averageDeletions = repositoryData.totalDeletions / repositoryData.amountOfCommits
+        self.averageChanges = repositoryData.totalChanges / repositoryData.amountOfCommits
+        self.averageFilesChanged = repositoryData.totalFilesChanged / repositoryData.amountOfCommits
         self.averageMessageLength = repositoryData.totalMessageLength / repositoryData.amountOfCommits
         self.amountOfUsers = len(repositoryData.differentUsers)
         self.commitsPerUser = repositoryData.amountOfCommits / self.amountOfUsers
@@ -26,10 +43,13 @@ class RepositoryData(object):
         self.amountOfCommits = 0
         self.totalAdditions = 0
         self.totalDeletions = 0
+        self.totalChanges = 0
+        self.totalFilesChanged = 0
         self.totalMessageLength = 0
         self.daysBetweenCommits = 0
         self.previousCommitDate = ''
         self.lastCommitDaysBeforeDeadline = -1
+        self.commitArray = []
 
     def addNewUserToDictionary(self,user):
         self.differentUsers[user] = 1
@@ -66,6 +86,8 @@ def extractDataFromCommit(commit, deadline, repositoryData):
     repositoryData.amountOfCommits += 1
     repositoryData.totalAdditions += commit['stats']['additions']
     repositoryData.totalDeletions += commit['stats']['deletions']
+    repositoryData.totalChanges += commit['stats']['total']
+    repositoryData.totalFilesChanged += len(commit['files'])
     repositoryData.totalMessageLength += len(commit['commit']['message'])
     commitTimestamp = iso8601.parse_date(commit['commit']['author']['date'])
     if repositoryData.lastCommitDaysBeforeDeadline == -1:
@@ -73,6 +95,7 @@ def extractDataFromCommit(commit, deadline, repositoryData):
     if repositoryData.previousCommitDate != '':
         repositoryData.daysBetweenCommits += (repositoryData.previousCommitDate - commitTimestamp).days
     repositoryData.previousCommitDate = commitTimestamp
+    repositoryData.commitArray.append(Commit(commit['stats']['additions'],commit['stats']['deletions'],commit['stats']['total'],len(commit['files']),commit['commit']['committer']['email'],commit['commit']['message'],commitTimestamp))
 
 def start():
     user = 'ericzucho'
@@ -91,6 +114,17 @@ def start():
     repoStatistics = RepositoryStatistics(repoData)
     repoStatistics
 
+    bla = [i.asArray() for i in repoData.commitArray]
+
+    numpyData = np.array([['','Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','Repository'],
+                          bla])
+
+    pandasData = pd.DataFrame(data=numpyData[1:,1:],
+                  index=numpyData[1:,0],
+                  columns=numpyData[0,1:])
+
 
 if __name__ == '__main__':
     start()
+
+# PANDAS
