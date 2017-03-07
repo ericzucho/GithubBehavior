@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 
 class Commit(object):
-    def __init__(self,additions,deletions,changes,amountOfFiles,userEmail,message,timestamp):
+    def __init__(self,additions,deletions,changes,amountOfFiles,userEmail,message,timestamp,repository):
         self.additions = additions
         self.deletions = deletions
         self.changes = changes
@@ -16,9 +16,13 @@ class Commit(object):
         self.userEmail = userEmail
         self.message = message
         self.timestamp = timestamp
+        self.repository = repository
 
     def asArray(self):
-        return [self.additions,self.deletions,self.changes,self.amountOfFiles,self.userEmail,len(self.message),self.timestamp]
+        return [self.additions,self.deletions,self.changes,self.amountOfFiles,self.userEmail,len(self.message),self.timestamp,self.repository]
+
+    def asTuple(self):
+        return (self.additions,self.deletions,self.changes,self.amountOfFiles,self.userEmail,len(self.message),self.timestamp,self.repository)
 
 class RepositoryStatistics(object):
     def __init__(self,repositoryData):
@@ -38,7 +42,8 @@ class RepositoryStatistics(object):
 
 
 class RepositoryData(object):
-    def __init__(self):
+    def __init__(self,user,repo,branch):
+        self.repository = user+"$"+repo+"$"+branch
         self.differentUsers = {}
         self.amountOfCommits = 0
         self.totalAdditions = 0
@@ -95,7 +100,7 @@ def extractDataFromCommit(commit, deadline, repositoryData):
     if repositoryData.previousCommitDate != '':
         repositoryData.daysBetweenCommits += (repositoryData.previousCommitDate - commitTimestamp).days
     repositoryData.previousCommitDate = commitTimestamp
-    repositoryData.commitArray.append(Commit(commit['stats']['additions'],commit['stats']['deletions'],commit['stats']['total'],len(commit['files']),commit['commit']['committer']['email'],commit['commit']['message'],commitTimestamp))
+    repositoryData.commitArray.append(Commit(commit['stats']['additions'],commit['stats']['deletions'],commit['stats']['total'],len(commit['files']),commit['commit']['committer']['email'],commit['commit']['message'],commitTimestamp,repositoryData.repository))
 
 def start():
     user = 'ericzucho'
@@ -103,7 +108,7 @@ def start():
     branch = 'homework-solved'
     deadline = datetime.datetime(year=2016,month=9,day=18,tzinfo=pytz.timezone('US/Central'))
 
-    repoData = RepositoryData()
+    repoData = RepositoryData(user,repo,branch)
 
     analyzeRepo(user,repo,branch,deadline,repoData)
 
@@ -114,15 +119,18 @@ def start():
     repoStatistics = RepositoryStatistics(repoData)
     repoStatistics
 
-    bla = [i.asArray() for i in repoData.commitArray]
+    bla = [i.asTuple() for i in repoData.commitArray]
 
-    numpyData = np.array([['','Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','Repository'],
-                          bla])
+    #numpyData = np.array([['','Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','Repository'],
+    #                      bla.flatten()])
 
-    pandasData = pd.DataFrame(data=numpyData[1:,1:],
-                  index=numpyData[1:,0],
-                  columns=numpyData[0,1:])
+    #pandasData = pd.DataFrame(data=numpyData[1:,1:],
+    #              index=numpyData[1:,0],
+    #              columns=numpyData[0,1:])
 
+    columns = ['Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','Repository']
+    df = pd.DataFrame.from_records(bla,columns=columns)
+    df
 
 if __name__ == '__main__':
     start()
