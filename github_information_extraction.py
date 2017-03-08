@@ -119,7 +119,7 @@ def start():
     repoStatistics = RepositoryStatistics(repoData)
     repoStatistics
 
-    bla = [i.asTuple() for i in repoData.commitArray]
+    repoDataAsTuple = [i.asTuple() for i in repoData.commitArray]
 
     #numpyData = np.array([['','Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','Repository'],
     #                      bla.flatten()])
@@ -129,7 +129,7 @@ def start():
     #              columns=numpyData[0,1:])
 
     columns = ['Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','Repository']
-    df = pd.DataFrame.from_records(bla,columns=columns)
+    df = pd.DataFrame.from_records(repoDataAsTuple,columns=columns)
     df
 
 if __name__ == '__main__':
