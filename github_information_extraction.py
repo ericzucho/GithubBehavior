@@ -5,10 +5,14 @@ import requests
 import datetime
 import iso8601
 import pandas as pd
-import numpy as np
+import csv
+import os.path
+
+owner = ""
+password = ""
 
 class Commit(object):
-    def __init__(self,additions,deletions,changes,amountOfFiles,userEmail,message,timestamp,repository):
+    def __init__(self,additions,deletions,changes,amountOfFiles,userEmail,message,timestamp,repository,repositoryOrganization,repositoryUsername):
         self.additions = additions
         self.deletions = deletions
         self.changes = changes
@@ -17,12 +21,14 @@ class Commit(object):
         self.message = message
         self.timestamp = timestamp
         self.repository = repository
+        self.repositoryOrganization = repositoryOrganization
+        self.repositoryUsername = repositoryUsername
 
     def asArray(self):
-        return [self.additions,self.deletions,self.changes,self.amountOfFiles,self.userEmail,len(self.message),self.timestamp,self.repository]
+        return [self.additions,self.deletions,self.changes,self.amountOfFiles,self.userEmail,len(self.message),self.timestamp,self.repository,self.repositoryOrganization,self.repositoryUsername]
 
     def asTuple(self):
-        return (self.additions,self.deletions,self.changes,self.amountOfFiles,self.userEmail,len(self.message),self.timestamp,self.repository)
+        return (self.additions,self.deletions,self.changes,self.amountOfFiles,self.userEmail,len(self.message),self.timestamp,self.repository,self.repositoryOrganization,self.repositoryUsername)
 
 class RepositoryStatistics(object):
     def __init__(self,repositoryData):
@@ -42,8 +48,10 @@ class RepositoryStatistics(object):
 
 
 class RepositoryData(object):
-    def __init__(self,user,repo,branch):
-        self.repository = user+"$"+repo+"$"+branch
+    def __init__(self,orgName,repoPrefix,branch):
+        self.repository = repoPrefix
+        self.repositoryOrganization = orgName
+        self.repositoryUsername = branch
         self.differentUsers = {}
         self.amountOfCommits = 0
         self.totalAdditions = 0
@@ -73,11 +81,12 @@ class RepositoryData(object):
         return maxCommitSingleUser,minCommitSingleUser
 
 
-def analyzeRepo(user,repo,branch,deadline,repositoryData):
-    extractCommitFromURL('https://api.github.com/repos/%s/%s/commits/%s' % (user, repo, branch),deadline,repositoryData)
+
+def analyzeRepo(organization,repoPrefix,username,deadline,repositoryData):
+    extractCommitFromURL('https://api.github.com/repos/%s/%s-%s/pulls' % (organization, repoPrefix, username),deadline,repositoryData)
 
 def extractCommitFromURL(url,deadline,repositoryData):
-    r = requests.get(url)
+    r = requests.get(url, auth=(owner, password))
     commit = json.loads(r.content)
     extractDataFromCommit(commit,deadline,repositoryData)
     if len(commit['parents']) > 0:
@@ -100,39 +109,42 @@ def extractDataFromCommit(commit, deadline, repositoryData):
     if repositoryData.previousCommitDate != '':
         repositoryData.daysBetweenCommits += (repositoryData.previousCommitDate - commitTimestamp).days
     repositoryData.previousCommitDate = commitTimestamp
-    repositoryData.commitArray.append(Commit(commit['stats']['additions'],commit['stats']['deletions'],commit['stats']['total'],len(commit['files']),commit['commit']['committer']['email'],commit['commit']['message'],commitTimestamp,repositoryData.repository))
+    repositoryData.commitArray.append(Commit(commit['stats']['additions'],commit['stats']['deletions'],commit['stats']['total'],len(commit['files']),commit['commit']['committer']['email'],commit['commit']['message'],commitTimestamp,repositoryData.repository,repositoryData.repositoryOrganization,repositoryData.repositoryUsername))
+
+
 
 def start():
-    user = 'ericzucho'
-    repo = 'assignment2'
-    branch = 'homework-solved'
-    deadline = datetime.datetime(year=2016,month=9,day=18,tzinfo=pytz.timezone('US/Central'))
 
-    repoData = RepositoryData(user,repo,branch)
+    columns = ['Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','RepositoryName','RepositoryOwner','RepositoryBranch']
 
-    analyzeRepo(user,repo,branch,deadline,repoData)
+    with open('repos_input.csv') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            deadline = datetime.datetime(year=2016,month=9,day=18,tzinfo=pytz.timezone('US/Central'))
 
-    if repoData.amountOfCommits == 0:
-        print("No commits.")
-        return
+            repoData = RepositoryData(row['Organization name'],row['Repo prefix'],row['Username'])
 
-    repoStatistics = RepositoryStatistics(repoData)
-    repoStatistics
+            analyzeRepo(row['Organization name'],row['Repo prefix'],row['Username'],deadline,repoData)
 
-    repoDataAsTuple = [i.asTuple() for i in repoData.commitArray]
+            if repoData.amountOfCommits == 0:
+                print("No commits.")
+                return
 
-    #numpyData = np.array([['','Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','Repository'],
-    #                      bla.flatten()])
+            repoStatistics = RepositoryStatistics(repoData)
+            repoStatistics
 
-    #pandasData = pd.DataFrame(data=numpyData[1:,1:],
-    #              index=numpyData[1:,0],
-    #              columns=numpyData[0,1:])
+            repoDataAsTuple = [i.asTuple() for i in repoData.commitArray]
 
-    columns = ['Additions','Deletions','Changes','AmountOfFiles','UserEmail','MessageLength','Timestamp','Repository']
-    df = pd.DataFrame.from_records(repoDataAsTuple,columns=columns)
-    df
+            df = pd.DataFrame.from_records(repoDataAsTuple,columns=columns)
+            if os.path.isfile('output.csv'):
+                with open('output.csv', 'a') as f:
+                    df.to_csv(f, header=False)
+            else:
+                df.to_csv('output.csv')
 
 if __name__ == '__main__':
     start()
 
-# PANDAS
+# Input, output.
+#URL format
+#Auth
