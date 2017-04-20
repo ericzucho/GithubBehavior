@@ -8,8 +8,8 @@ import pandas as pd
 import csv
 import os.path
 
-owner = ""
-password = ""
+owner = "ericzucho"
+password = "Erzz1692"
 
 class Commit(object):
     def __init__(self,additions,deletions,changes,amountOfFiles,userEmail,message,timestamp,repository,repositoryOrganization,repositoryUsername):
@@ -82,21 +82,23 @@ class RepositoryData(object):
 
 
 
-def analyzeRepo(organization,repoPrefix,username,deadline,repositoryData):
-    extractCommitFromURL('https://api.github.com/repos/%s/%s-%s/pulls' % (organization, repoPrefix, username),deadline,repositoryData)
+def extractCommitFromURL(organization,repoPrefix,username,deadline,repositoryData):
+    r = requests.get('https://api.github.com/repos/%s/%s-%s/commits' % (organization, repoPrefix, username), auth=(owner, password))
+    if r.status_code != 200:
+        return
+    commits_sha = json.loads(r.content)
+    for commit_sha in commits_sha:
+        sha = commit_sha['sha']
+        r2 = requests.get('https://api.github.com/repos/%s/%s-%s/commits/%s' % (organization, repoPrefix, username, sha), auth=(owner, password))
+        commit = json.loads(r2.content)
+        extractDataFromCommit(commit,deadline,repositoryData)
 
-def extractCommitFromURL(url,deadline,repositoryData):
-    r = requests.get(url, auth=(owner, password))
-    commit = json.loads(r.content)
-    extractDataFromCommit(commit,deadline,repositoryData)
-    if len(commit['parents']) > 0:
-        extractCommitFromURL(commit['parents'][0]['url'],deadline,repositoryData)
 
 def extractDataFromCommit(commit, deadline, repositoryData):
-    if commit['commit']['committer']['email'] not in repositoryData.differentUsers:
-        repositoryData.addNewUserToDictionary(commit['commit']['committer']['email'])
+    if commit['commit']['author']['name'] not in repositoryData.differentUsers:
+        repositoryData.addNewUserToDictionary(commit['commit']['author']['name'])
     else:
-        repositoryData.addToExistingUserInDictionary(commit['commit']['committer']['email'])
+        repositoryData.addToExistingUserInDictionary(commit['commit']['author']['name'])
     repositoryData.amountOfCommits += 1
     repositoryData.totalAdditions += commit['stats']['additions']
     repositoryData.totalDeletions += commit['stats']['deletions']
@@ -109,7 +111,7 @@ def extractDataFromCommit(commit, deadline, repositoryData):
     if repositoryData.previousCommitDate != '':
         repositoryData.daysBetweenCommits += (repositoryData.previousCommitDate - commitTimestamp).days
     repositoryData.previousCommitDate = commitTimestamp
-    repositoryData.commitArray.append(Commit(commit['stats']['additions'],commit['stats']['deletions'],commit['stats']['total'],len(commit['files']),commit['commit']['committer']['email'],commit['commit']['message'],commitTimestamp,repositoryData.repository,repositoryData.repositoryOrganization,repositoryData.repositoryUsername))
+    repositoryData.commitArray.append(Commit(commit['stats']['additions'],commit['stats']['deletions'],commit['stats']['total'],len(commit['files']),commit['commit']['author']['name'],commit['commit']['message'],commitTimestamp,repositoryData.repository,repositoryData.repositoryOrganization,repositoryData.repositoryUsername))
 
 
 
@@ -124,11 +126,11 @@ def start():
 
             repoData = RepositoryData(row['Organization name'],row['Repo prefix'],row['Username'])
 
-            analyzeRepo(row['Organization name'],row['Repo prefix'],row['Username'],deadline,repoData)
+            extractCommitFromURL(row['Organization name'],row['Repo prefix'],row['Username'],deadline,repoData)
 
             if repoData.amountOfCommits == 0:
                 print("No commits.")
-                return
+                continue
 
             repoStatistics = RepositoryStatistics(repoData)
             repoStatistics
@@ -144,7 +146,3 @@ def start():
 
 if __name__ == '__main__':
     start()
-
-# Input, output.
-#URL format
-#Auth
